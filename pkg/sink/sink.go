@@ -422,7 +422,8 @@ func (r Sink) processTrigger(t triggersv1.Trigger, el *triggersv1.EventListener,
 		}
 	}
 
-	rt, err := template.ResolveTrigger(t,
+	triggerContext := template.TriggerContext{EventID: eventID}
+	rt, err := template.ResolveTrigger(t, finalPayload, header, extensions, triggerContext,
 		r.TriggerBindingLister.TriggerBindings(t.Namespace).Get,
 		r.ClusterTriggerBindingLister.Get,
 		r.TriggerTemplateLister.TriggerTemplates(t.Namespace).Get)

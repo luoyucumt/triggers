@@ -206,12 +206,17 @@ func processTriggerSpec(kubeClient kubernetes.Interface, client triggersclientse
 			log.Errorf("interceptor stoppped trigger processing: %w", iresp.Status.Err())
 		}
 	}
+	extensions := map[string]interface{}{}
+	if iresp != nil && iresp.Extensions != nil {
+		extensions = iresp.Extensions
+	}
 
 	if tri.Namespace == "" {
 		tri.Namespace = "default"
 	}
 
-	rt, err := template.ResolveTrigger(*tri,
+	triggerContext := template.TriggerContext{EventID: eventID}
+	rt, err := template.ResolveTrigger(*tri, finalPayload, header, extensions, triggerContext,
 		func(name string) (*triggersv1.TriggerBinding, error) {
 			return client.TriggersV1beta1().TriggerBindings(tri.Namespace).Get(context.Background(), name, metav1.GetOptions{})
 		},

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
@@ -45,7 +46,7 @@ type getClusterTriggerBinding func(name string) (*triggersv1.ClusterTriggerBindi
 
 // ResolveTrigger takes in a trigger containing object refs to bindings and
 // templates and resolves them to their underlying values.
-func ResolveTrigger(trigger triggersv1.Trigger, getTB getTriggerBinding, getCTB getClusterTriggerBinding, getTT getTriggerTemplate) (ResolvedTrigger, error) {
+func ResolveTrigger(trigger triggersv1.Trigger, body []byte, header http.Header, extensions map[string]interface{}, triggerContext TriggerContext, getTB getTriggerBinding, getCTB getClusterTriggerBinding, getTT getTriggerTemplate) (ResolvedTrigger, error) {
 	bp, err := resolveBindingsToParams(trigger.Spec.Bindings, getTB, getCTB)
 	if err != nil {
 		return ResolvedTrigger{}, fmt.Errorf("failed to resolve bindings: %w", err)
@@ -61,6 +62,22 @@ func ResolveTrigger(trigger triggersv1.Trigger, getTB getTriggerBinding, getCTB 
 		var ttName string
 		if trigger.Spec.Template.Ref != nil {
 			ttName = *trigger.Spec.Template.Ref
+			if isTektonExpr(ttName) {
+				if isTektonExpr(ttName) {
+					evt, err := newEvent(body, header, extensions, triggerContext)
+					if err != nil {
+						return ResolvedTrigger{}, fmt.Errorf("error creating event: %w", err)
+					}
+					expressions, originals := findTektonExpressions(ttName)
+					for i, expr := range expressions {
+						val, err := parseJSONPath(evt, expr)
+						if err != nil {
+							return ResolvedTrigger{}, fmt.Errorf("error parsing JSONPath %s: %w", expr, err)
+						}
+						ttName = strings.ReplaceAll(ttName, originals[i], val)
+					}
+				}
+			}
 		}
 		resolvedTT, err = getTT(ttName)
 		if err != nil {
